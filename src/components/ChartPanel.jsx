@@ -57,6 +57,7 @@ export function ChartPanel({ table }) {
     yColumns: [],
     colorColumn: '',
     sizeColumn: '',
+    labelColumn: '', // Column to show in tooltip (e.g., country name)
     colorScheme: 'default',
     title: '',
     showLegend: true,
@@ -90,12 +91,19 @@ export function ChartPanel({ table }) {
       const numeric = numericCols.length > 0 ? numericCols : allColumns;
       const categorical = categoricalCols.length > 0 ? categoricalCols : allColumns;
 
+      // Try to find a good label column (country, name, etc.)
+      const labelPatterns = [/country/i, /nation/i, /name/i, /territory/i, /state/i, /city/i];
+      const detectedLabel = allColumns.find(col =>
+        labelPatterns.some(pattern => pattern.test(col))
+      ) || categorical[0] || allColumns[0];
+
       setConfig(prev => ({
         ...prev,
         xColumn: categorical[0] || allColumns[0],
         yColumns: numeric.slice(0, 1),
         colorColumn: '',
         sizeColumn: numeric.length > 1 ? numeric[1] : '',
+        labelColumn: detectedLabel,
       }));
     }
   }, [table, numericCols, categoricalCols]);
@@ -139,7 +147,16 @@ export function ChartPanel({ table }) {
           const x = parseNumericValue(row[config.xColumn]);
           const y = parseNumericValue(row[config.yColumns[0]]);
           const r = parseNumericValue(row[config.sizeColumn]);
-          return { x, y, r: r ? Math.sqrt(r) * 2 : 5 }; // Scale radius
+          const rawR = parseNumericValue(row[config.sizeColumn]);
+          return {
+            x,
+            y,
+            r: r ? Math.sqrt(r) * 2 : 5,
+            // Store metadata for tooltip
+            label: config.labelColumn ? row[config.labelColumn] : null,
+            rawSize: rawR,
+            rawData: row,
+          };
         }).filter(p => p.x !== null && p.y !== null);
 
         return {
@@ -150,7 +167,7 @@ export function ChartPanel({ table }) {
         };
       });
 
-      return { datasets };
+      return { datasets, hasLabels: !!config.labelColumn };
     }
 
     // Handle scatter with color grouping
@@ -163,6 +180,9 @@ export function ChartPanel({ table }) {
         const points = filteredData.map(row => ({
           x: parseNumericValue(row[config.xColumn]),
           y: parseNumericValue(row[config.yColumns[0]]),
+          // Store metadata for tooltip
+          label: config.labelColumn ? row[config.labelColumn] : null,
+          rawData: row,
         })).filter(p => p.x !== null && p.y !== null);
 
         return {
@@ -173,7 +193,27 @@ export function ChartPanel({ table }) {
         };
       });
 
-      return { datasets };
+      return { datasets, hasLabels: !!config.labelColumn };
+    }
+
+    // Handle scatter without color grouping
+    if (config.chartType === 'scatter') {
+      const points = table.data.map(row => ({
+        x: parseNumericValue(row[config.xColumn]),
+        y: parseNumericValue(row[config.yColumns[0]]),
+        label: config.labelColumn ? row[config.labelColumn] : null,
+        rawData: row,
+      })).filter(p => p.x !== null && p.y !== null);
+
+      return {
+        datasets: [{
+          label: config.yColumns[0],
+          data: points,
+          backgroundColor: colors[0],
+          borderColor: colors[0].replace(/[\d.]+\)$/, '1)'),
+        }],
+        hasLabels: !!config.labelColumn,
+      };
     }
 
     // Handle bar/line with color grouping (stacked or grouped)
@@ -208,7 +248,58 @@ export function ChartPanel({ table }) {
   const extendedChartOptions = useMemo(() => {
     const baseOptions = { ...chartOptions };
 
+    // Custom tooltip for scatter and bubble charts
+    if (['scatter', 'bubble'].includes(config.chartType) && config.labelColumn) {
+      baseOptions.plugins = {
+        ...baseOptions.plugins,
+        tooltip: {
+          callbacks: {
+            title: (context) => {
+              const dataPoint = context[0]?.raw;
+              if (dataPoint?.label) {
+                return dataPoint.label;
+              }
+              return '';
+            },
+            label: (context) => {
+              const dataPoint = context.raw;
+              const lines = [];
+
+              // Show x and y values
+              lines.push(`${config.xColumn}: ${dataPoint.x?.toLocaleString() ?? 'N/A'}`);
+              lines.push(`${config.yColumns[0]}: ${dataPoint.y?.toLocaleString() ?? 'N/A'}`);
+
+              // Show size for bubble charts
+              if (config.chartType === 'bubble' && config.sizeColumn && dataPoint.rawSize !== undefined) {
+                lines.push(`${config.sizeColumn}: ${dataPoint.rawSize?.toLocaleString() ?? 'N/A'}`);
+              }
+
+              // Show color group if applicable
+              if (config.colorColumn && context.dataset.label) {
+                lines.push(`${config.colorColumn}: ${context.dataset.label}`);
+              }
+
+              return lines;
+            },
+          },
+        },
+      };
+    }
+
     if (config.chartType === 'bubble') {
+      baseOptions.scales = {
+        x: {
+          title: { display: true, text: config.xColumn },
+          grid: { display: config.showGrid },
+        },
+        y: {
+          title: { display: true, text: config.yColumns[0] || '' },
+          grid: { display: config.showGrid },
+        },
+      };
+    }
+
+    if (config.chartType === 'scatter') {
       baseOptions.scales = {
         x: {
           title: { display: true, text: config.xColumn },
@@ -249,6 +340,7 @@ export function ChartPanel({ table }) {
 
   const showColorColumn = ['scatter', 'bubble', 'bar', 'line'].includes(config.chartType);
   const showSizeColumn = config.chartType === 'bubble';
+  const showLabelColumn = ['scatter', 'bubble'].includes(config.chartType);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -320,9 +412,27 @@ export function ChartPanel({ table }) {
           </div>
         </div>
 
-        {/* Row 2: Color and Size columns (for applicable chart types) */}
-        {(showColorColumn || showSizeColumn) && (
-          <div className="grid grid-cols-2 gap-4">
+        {/* Row 2: Label, Color and Size columns (for applicable chart types) */}
+        {(showLabelColumn || showColorColumn || showSizeColumn) && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {showLabelColumn && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Label Column (tooltip)
+                </label>
+                <select
+                  value={config.labelColumn}
+                  onChange={(e) => handleConfigChange('labelColumn', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                >
+                  <option value="">None</option>
+                  {table.headers.map((col) => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {showColorColumn && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
