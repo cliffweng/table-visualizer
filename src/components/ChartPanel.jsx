@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -13,9 +13,10 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { Bar, Line, Pie, Doughnut, Scatter, Radar, PolarArea } from 'react-chartjs-2';
+import { Bar, Line, Pie, Doughnut, Scatter, Radar, PolarArea, Bubble } from 'react-chartjs-2';
 import { useChartData } from '../hooks/useChartData';
 import { CHART_TYPES, COLOR_SCHEMES } from '../utils/chartHelpers';
+import { detectColumnTypes, parseNumericValue } from '../utils/parsers';
 
 ChartJS.register(
   CategoryScale,
@@ -40,13 +41,22 @@ const ChartComponent = {
   radar: Radar,
   polarArea: PolarArea,
   histogram: Bar,
+  bubble: Bubble,
 };
+
+// Extended chart types with bubble
+const EXTENDED_CHART_TYPES = [
+  ...CHART_TYPES,
+  { value: 'bubble', label: 'Bubble Chart' },
+];
 
 export function ChartPanel({ table }) {
   const [config, setConfig] = useState({
     chartType: 'bar',
     xColumn: '',
     yColumns: [],
+    colorColumn: '',
+    sizeColumn: '',
     colorScheme: 'default',
     title: '',
     showLegend: true,
@@ -55,20 +65,40 @@ export function ChartPanel({ table }) {
 
   const { numericColumns, categoricalColumns, chartData, chartOptions } = useChartData(table, config);
 
+  // Detect column types for the table
+  const columnTypes = useMemo(() => {
+    if (!table) return {};
+    return detectColumnTypes(table);
+  }, [table]);
+
+  const numericCols = useMemo(() => {
+    return Object.entries(columnTypes)
+      .filter(([_, type]) => type === 'numeric')
+      .map(([col]) => col);
+  }, [columnTypes]);
+
+  const categoricalCols = useMemo(() => {
+    return Object.entries(columnTypes)
+      .filter(([_, type]) => type === 'categorical')
+      .map(([col]) => col);
+  }, [columnTypes]);
+
   // Auto-select columns when table changes
   useEffect(() => {
     if (table && table.headers.length > 0) {
       const allColumns = table.headers;
-      const numeric = numericColumns.length > 0 ? numericColumns : allColumns;
-      const categorical = categoricalColumns.length > 0 ? categoricalColumns : allColumns;
+      const numeric = numericCols.length > 0 ? numericCols : allColumns;
+      const categorical = categoricalCols.length > 0 ? categoricalCols : allColumns;
 
       setConfig(prev => ({
         ...prev,
         xColumn: categorical[0] || allColumns[0],
         yColumns: numeric.slice(0, 1),
+        colorColumn: '',
+        sizeColumn: numeric.length > 1 ? numeric[1] : '',
       }));
     }
-  }, [table, numericColumns, categoricalColumns]);
+  }, [table, numericCols, categoricalCols]);
 
   if (!table) return null;
 
@@ -86,8 +116,116 @@ export function ChartPanel({ table }) {
     });
   };
 
+  // Build chart data with color and size support
+  const extendedChartData = useMemo(() => {
+    if (!table || !config.xColumn || config.yColumns.length === 0) {
+      return null;
+    }
+
+    const colors = COLOR_SCHEMES[config.colorScheme] || COLOR_SCHEMES.default;
+
+    // Handle bubble chart
+    if (config.chartType === 'bubble' && config.yColumns[0] && config.sizeColumn) {
+      const uniqueColors = config.colorColumn
+        ? [...new Set(table.data.map(row => row[config.colorColumn]))]
+        : [null];
+
+      const datasets = uniqueColors.map((colorValue, colorIndex) => {
+        const filteredData = config.colorColumn
+          ? table.data.filter(row => row[config.colorColumn] === colorValue)
+          : table.data;
+
+        const points = filteredData.map(row => {
+          const x = parseNumericValue(row[config.xColumn]);
+          const y = parseNumericValue(row[config.yColumns[0]]);
+          const r = parseNumericValue(row[config.sizeColumn]);
+          return { x, y, r: r ? Math.sqrt(r) * 2 : 5 }; // Scale radius
+        }).filter(p => p.x !== null && p.y !== null);
+
+        return {
+          label: colorValue || config.yColumns[0],
+          data: points,
+          backgroundColor: colors[colorIndex % colors.length],
+          borderColor: colors[colorIndex % colors.length].replace(/[\d.]+\)$/, '1)'),
+        };
+      });
+
+      return { datasets };
+    }
+
+    // Handle scatter with color grouping
+    if (config.chartType === 'scatter' && config.colorColumn) {
+      const uniqueColors = [...new Set(table.data.map(row => row[config.colorColumn]))];
+
+      const datasets = uniqueColors.map((colorValue, colorIndex) => {
+        const filteredData = table.data.filter(row => row[config.colorColumn] === colorValue);
+
+        const points = filteredData.map(row => ({
+          x: parseNumericValue(row[config.xColumn]),
+          y: parseNumericValue(row[config.yColumns[0]]),
+        })).filter(p => p.x !== null && p.y !== null);
+
+        return {
+          label: String(colorValue),
+          data: points,
+          backgroundColor: colors[colorIndex % colors.length],
+          borderColor: colors[colorIndex % colors.length].replace(/[\d.]+\)$/, '1)'),
+        };
+      });
+
+      return { datasets };
+    }
+
+    // Handle bar/line with color grouping (stacked or grouped)
+    if (['bar', 'line'].includes(config.chartType) && config.colorColumn) {
+      const uniqueColors = [...new Set(table.data.map(row => row[config.colorColumn]))];
+      const labels = [...new Set(table.data.map(row => row[config.xColumn]))];
+
+      const datasets = uniqueColors.map((colorValue, colorIndex) => {
+        const data = labels.map(label => {
+          const matchingRow = table.data.find(
+            row => row[config.xColumn] === label && row[config.colorColumn] === colorValue
+          );
+          return matchingRow ? parseNumericValue(matchingRow[config.yColumns[0]]) ?? 0 : 0;
+        });
+
+        return {
+          label: String(colorValue),
+          data,
+          backgroundColor: colors[colorIndex % colors.length],
+          borderColor: colors[colorIndex % colors.length].replace(/[\d.]+\)$/, '1)'),
+          borderWidth: config.chartType === 'line' ? 2 : 1,
+        };
+      });
+
+      return { labels, datasets };
+    }
+
+    // Fall back to default chart data
+    return chartData;
+  }, [table, config, chartData]);
+
+  const extendedChartOptions = useMemo(() => {
+    const baseOptions = { ...chartOptions };
+
+    if (config.chartType === 'bubble') {
+      baseOptions.scales = {
+        x: {
+          title: { display: true, text: config.xColumn },
+          grid: { display: config.showGrid },
+        },
+        y: {
+          title: { display: true, text: config.yColumns[0] || '' },
+          grid: { display: config.showGrid },
+        },
+      };
+    }
+
+    return baseOptions;
+  }, [chartOptions, config]);
+
   const renderChart = () => {
-    if (!chartData) {
+    if (!extendedChartData) {
       return (
         <div className="h-80 flex items-center justify-center text-gray-500">
           Select columns to visualize
@@ -95,8 +233,8 @@ export function ChartPanel({ table }) {
       );
     }
 
-    if (chartData.isBoxPlot) {
-      return <BoxPlotChart data={chartData} />;
+    if (extendedChartData.isBoxPlot) {
+      return <BoxPlotChart data={extendedChartData} />;
     }
 
     const Component = ChartComponent[config.chartType];
@@ -104,10 +242,13 @@ export function ChartPanel({ table }) {
 
     return (
       <div className="h-80">
-        <Component data={chartData} options={chartOptions} />
+        <Component data={extendedChartData} options={extendedChartOptions} />
       </div>
     );
   };
+
+  const showColorColumn = ['scatter', 'bubble', 'bar', 'line'].includes(config.chartType);
+  const showSizeColumn = config.chartType === 'bubble';
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -116,7 +257,7 @@ export function ChartPanel({ table }) {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Chart Type */}
+        {/* Row 1: Chart Type and basic options */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -127,7 +268,7 @@ export function ChartPanel({ table }) {
               onChange={(e) => handleConfigChange('chartType', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
             >
-              {CHART_TYPES.map(({ value, label }) => (
+              {EXTENDED_CHART_TYPES.map(({ value, label }) => (
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
@@ -178,6 +319,47 @@ export function ChartPanel({ table }) {
             />
           </div>
         </div>
+
+        {/* Row 2: Color and Size columns (for applicable chart types) */}
+        {(showColorColumn || showSizeColumn) && (
+          <div className="grid grid-cols-2 gap-4">
+            {showColorColumn && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Color/Group By (optional)
+                </label>
+                <select
+                  value={config.colorColumn}
+                  onChange={(e) => handleConfigChange('colorColumn', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                >
+                  <option value="">None</option>
+                  {table.headers.map((col) => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {showSizeColumn && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Size Column (bubble radius)
+                </label>
+                <select
+                  value={config.sizeColumn}
+                  onChange={(e) => handleConfigChange('sizeColumn', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                >
+                  <option value="">None</option>
+                  {table.headers.map((col) => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Y-Axis Columns (multi-select) */}
         <div>
