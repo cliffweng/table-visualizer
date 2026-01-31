@@ -46,7 +46,7 @@ export function TablePreview({ table }) {
       </div>
       {hasMore && (
         <div className="px-4 py-2 text-center text-sm text-gray-500 border-t border-gray-200">
-          ... and {table.data.length - maxRows} more rows
+          … and {table.data.length - maxRows} more rows
         </div>
       )}
     </div>

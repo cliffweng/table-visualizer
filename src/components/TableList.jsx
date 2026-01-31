@@ -13,7 +13,7 @@ export function TableList({ tables, selectedId, onSelect }) {
           <li key={table.id}>
             <button
               onClick={() => onSelect(table.id)}
-              className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
+              className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
                 selectedId === table.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
               }`}
             >

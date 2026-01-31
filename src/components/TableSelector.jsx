@@ -51,7 +51,7 @@ export function TableSelector({ sources, selectedTables, onToggleTable }) {
                       checked={isSelected}
                       onChange={() => canSelect && onToggleTable(source.id, table)}
                       disabled={!canSelect}
-                      className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="mt-1 rounded border-gray-300 text-blue-600 focus-visible:ring-blue-500 focus-visible:ring-2"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-800">{table.name}</p>

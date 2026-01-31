@@ -358,7 +358,7 @@ export function ChartPanel({ table }) {
             <select
               value={config.chartType}
               onChange={(e) => handleConfigChange('chartType', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-gray-800"
             >
               {EXTENDED_CHART_TYPES.map(({ value, label }) => (
                 <option key={value} value={value}>{label}</option>
@@ -373,7 +373,7 @@ export function ChartPanel({ table }) {
             <select
               value={config.xColumn}
               onChange={(e) => handleConfigChange('xColumn', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-gray-800"
             >
               {table.headers.map((col) => (
                 <option key={col} value={col}>{col}</option>
@@ -388,7 +388,7 @@ export function ChartPanel({ table }) {
             <select
               value={config.colorScheme}
               onChange={(e) => handleConfigChange('colorScheme', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-gray-800"
             >
               {Object.keys(COLOR_SCHEMES).map((scheme) => (
                 <option key={scheme} value={scheme}>
@@ -406,8 +406,8 @@ export function ChartPanel({ table }) {
               type="text"
               value={config.title}
               onChange={(e) => handleConfigChange('title', e.target.value)}
-              placeholder="Optional title..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+              placeholder="Optional title…"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-gray-800"
             />
           </div>
         </div>
@@ -423,7 +423,7 @@ export function ChartPanel({ table }) {
                 <select
                   value={config.labelColumn}
                   onChange={(e) => handleConfigChange('labelColumn', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-gray-800"
                 >
                   <option value="">None</option>
                   {table.headers.map((col) => (
@@ -441,7 +441,7 @@ export function ChartPanel({ table }) {
                 <select
                   value={config.colorColumn}
                   onChange={(e) => handleConfigChange('colorColumn', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-gray-800"
                 >
                   <option value="">None</option>
                   {table.headers.map((col) => (
@@ -459,7 +459,7 @@ export function ChartPanel({ table }) {
                 <select
                   value={config.sizeColumn}
                   onChange={(e) => handleConfigChange('sizeColumn', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 text-gray-800"
                 >
                   <option value="">None</option>
                   {table.headers.map((col) => (
@@ -481,7 +481,7 @@ export function ChartPanel({ table }) {
               <button
                 key={col}
                 onClick={() => handleYColumnToggle(col)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
                   config.yColumns.includes(col)
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

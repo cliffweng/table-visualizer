@@ -173,7 +173,7 @@ function App() {
             {sources.length > 0 && (
               <button
                 onClick={handleClearAll}
-                className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
               >
                 Clear All
               </button>
@@ -228,7 +228,7 @@ function App() {
         {/* Empty State */}
         {sources.length === 0 && (
           <div className="text-center py-12">
-            <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
             <h3 className="mt-4 text-lg font-medium text-gray-900">No data sources added</h3>
